@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mfcad-layout"
+version = "0.2.0"
+description = "Lay out 3D-printed membrane-valve actuator matrices and generate the plates (mfcad)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Camilo Perea" }]
+dependencies = ["numpy>=1.22", "manifold3d>=3.0"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Environment :: X11 Applications :: Tk",
+    "Topic :: Scientific/Engineering",
+]
+
+[project.urls]
+Homepage = "https://github.com/0980491/microfluidic-generator"
+
+[project.gui-scripts]
+mfcad-layout = "mfcad_layout.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

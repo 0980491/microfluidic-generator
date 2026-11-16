@@ -1,0 +1,48 @@
+# Builds the standalone mfcad Layout program for Windows, macOS and Linux.
+# Run it by hand (Actions tab -> "mfcad Layout builds" -> Run workflow) or push
+# a tag like v0.2.0; the builds land under the run's Artifacts, and a
+# tag also attaches them to a GitHub release.
+name: mfcad Layout builds
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install . pyinstaller pytest
+      - name: Test
+        run: python -m pytest -q tests
+      - name: Build
+        run: pyinstaller --onefile --windowed --name mfcad-layout --hidden-import manifold3d --hidden-import numpy packaging/launcher.py
+      - name: Package (macOS app bundle as zip)
+        if: runner.os == 'macOS'
+        run: cd dist && zip -r mfcad-layout-macos.zip mfcad-layout.app && rm -rf mfcad-layout.app mfcad-layout
+      - name: Rename (Linux)
+        if: runner.os == 'Linux'
+        run: mv dist/mfcad-layout dist/mfcad-layout-linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mfcad-layout-${{ runner.os }}
+          path: dist/*
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
