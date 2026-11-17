@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Checks that the website (docs/js) gives the same channels and plates as the Python program",
+  "scripts": { "check": "node web_check.mjs" },
+  "dependencies": { "manifold-3d": "3.5.4" }
+}

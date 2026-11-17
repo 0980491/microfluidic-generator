@@ -1,0 +1,164 @@
+{
+  "format": "mfcad-layout",
+  "version": 1,
+  "units": "mm",
+  "plate": {
+    "width": 51.6,
+    "length": 45.3
+  },
+  "construction": "3 rigid plates (top, middle, bottom) + 2 membranes; actuator = mfcad matrix cell (2 NO valves in series + dome)",
+  "rules": {
+    "pitch_x": 14.0,
+    "pitch_y": 11.9,
+    "act_gap": 0.0,
+    "act_edge": 4.8,
+    "window_d": 7.0,
+    "bolt_d": 3.8,
+    "nut_af": 5.9,
+    "bolt_edge": 4.8,
+    "bolt_spacing": 8.0,
+    "bolt_window": 2.0,
+    "bolt_feature": 0.7
+  },
+  "editor": {
+    "grid": 0.5
+  },
+  "actuators": [
+    {
+      "name": "A1",
+      "x": 11.8,
+      "y": 10.05,
+      "rotation": 0
+    },
+    {
+      "name": "A2",
+      "x": 25.8,
+      "y": 10.05,
+      "rotation": 0
+    },
+    {
+      "name": "A3",
+      "x": 39.8,
+      "y": 10.05,
+      "rotation": 0
+    },
+    {
+      "name": "A4",
+      "x": 11.8,
+      "y": 21.95,
+      "rotation": 0
+    },
+    {
+      "name": "A5",
+      "x": 25.8,
+      "y": 21.95,
+      "rotation": 0
+    },
+    {
+      "name": "A6",
+      "x": 39.8,
+      "y": 21.95,
+      "rotation": 0
+    },
+    {
+      "name": "A7",
+      "x": 11.8,
+      "y": 33.85,
+      "rotation": 0
+    },
+    {
+      "name": "A8",
+      "x": 25.8,
+      "y": 33.85,
+      "rotation": 0
+    },
+    {
+      "name": "A9",
+      "x": 39.8,
+      "y": 33.85,
+      "rotation": 0
+    }
+  ],
+  "bolts": [
+    {
+      "name": "B1",
+      "x": 4.8,
+      "y": 4.8
+    },
+    {
+      "name": "B2",
+      "x": 18.8,
+      "y": 4.8
+    },
+    {
+      "name": "B3",
+      "x": 18.8,
+      "y": 16.7
+    },
+    {
+      "name": "B4",
+      "x": 4.8,
+      "y": 16.7
+    },
+    {
+      "name": "B5",
+      "x": 32.8,
+      "y": 4.8
+    },
+    {
+      "name": "B6",
+      "x": 32.8,
+      "y": 16.7
+    },
+    {
+      "name": "B7",
+      "x": 46.8,
+      "y": 4.8
+    },
+    {
+      "name": "B8",
+      "x": 46.8,
+      "y": 16.7
+    },
+    {
+      "name": "B9",
+      "x": 18.8,
+      "y": 28.6
+    },
+    {
+      "name": "B10",
+      "x": 4.8,
+      "y": 28.6
+    },
+    {
+      "name": "B11",
+      "x": 32.8,
+      "y": 28.6
+    },
+    {
+      "name": "B12",
+      "x": 46.8,
+      "y": 28.6
+    },
+    {
+      "name": "B13",
+      "x": 18.8,
+      "y": 40.5
+    },
+    {
+      "name": "B14",
+      "x": 4.8,
+      "y": 40.5
+    },
+    {
+      "name": "B15",
+      "x": 32.8,
+      "y": 40.5
+    },
+    {
+      "name": "B16",
+      "x": 46.8,
+      "y": 40.5
+    }
+  ]
+}

@@ -16,6 +16,24 @@ checks every rule as you work. **Generate 3D** routes the channels through the
 plates, and shows them in a 3D view where you can see the logic inside.
 **Export STL** writes the three plates, ready to slice.
 
+## Use it online — nothing to install
+
+**<https://0980491.github.io/microfluidic-generator/>**
+
+The website is the whole program:
+- the editor and the rules;
+- the lines and the inlet faces;
+- Generate 3D, with an X-ray view of the real channels;
+- Export STL, which downloads a zip with the three plates, the membrane
+  template, the channel drawing and the README.
+
+Everything runs in your browser and nothing is uploaded. It reads and writes the
+same `.mfl` files as the desktop program, and your last layout is kept in the
+browser. It works best on a computer; on a phone it opens, but there's little
+room to edit.
+
+The rest of this page is for the desktop program.
+
 ## Install
 
 There are two ways:
@@ -275,6 +293,24 @@ pip install -e . pytest
 python -m pytest -q tests
 python -m mfcad_layout examples/3x3.mfl
 ```
+
+### The website
+
+The website lives in [`docs/`](docs/): plain HTML and JavaScript modules, with
+no build step. It loads [three.js](https://threejs.org) and
+[manifold](https://github.com/elalish/manifold) (the same geometry engine as the
+desktop program) from jsDelivr. GitHub Pages serves it from `main` / `docs`.
+
+`docs/js/route.js` and `docs/js/geometry.js` are line-by-line ports of
+`route.py` and `build3d.py`. To check that the two still give the same channels
+and plates:
+
+```bash
+cd tools && npm install && npm run check
+```
+
+To try the website locally: `python -m http.server -d docs`, then open
+<http://localhost:8000>.
 
 To build a standalone program for the system you are on:
 

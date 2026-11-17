@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mfcad Layout</title>
+<meta name="description" content="Lay out 3D-printed membrane-valve actuator matrices, see the channels inside in 3D, and download the plates as STL files.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Ccircle cx='13' cy='13' r='11' fill='%233b5bdb'/%3E%3Ccircle cx='13' cy='13' r='5.5' fill='white'/%3E%3Ccircle cx='13' cy='13' r='2' fill='%233b5bdb'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.185.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.0/examples/jsm/",
+    "manifold-3d": "https://cdn.jsdelivr.net/npm/manifold-3d@3.5.4/manifold.js"
+  }
+}
+</script>
+</head>
+<body>
+<header class="bar">
+  <div class="brand">
+    <svg viewBox="0 0 26 26" width="26" height="26" aria-hidden="true"><circle cx="13" cy="13" r="11" fill="var(--accent)"/><circle cx="13" cy="13" r="5.5" fill="#fff"/><circle cx="13" cy="13" r="2" fill="var(--accent)"/></svg>
+    <span>mfcad Layout</span>
+  </div>
+  <div class="seg" role="radiogroup" aria-label="Tool">
+    <button data-tool="select" title="Select — V" class="on">↖ Select</button>
+    <button data-tool="actuator" title="Actuator — A">◎ Actuator</button>
+    <button data-tool="bolt" title="Bolt — B">⊕ Bolt</button>
+    <button data-tool="matrix" title="Matrix — M">▦ Matrix</button>
+  </div>
+  <div class="group">
+    <button class="flat" id="btn-rotate" title="Rotate 90° — R">↻ Rotate</button>
+    <button class="flat" id="btn-corners" title="Bolts at the footprint corners of the selection (or of everything)">Corner bolts</button>
+    <button class="flat" id="btn-fit" title="Shrink or grow the plate around everything">Fit plate</button>
+    <button class="flat" id="btn-rules" title="Every distance, in mm">Rules…</button>
+    <label class="snap">Snap <select id="snap"><option>0.1</option><option>0.25</option><option selected>0.5</option><option>1</option><option>2</option><option>5</option></select> mm</label>
+  </div>
+  <div class="spacer"></div>
+  <div class="group">
+    <div class="menu">
+      <button class="flat" id="btn-file">File ▾</button>
+      <div class="menu-list" id="file-menu" hidden>
+        <button data-act="new">New</button>
+        <button data-act="open">Open .mfl…</button>
+        <button data-act="save">Save .mfl</button>
+        <hr>
+        <button data-act="ex-2x2">Example: 2×2 matrix</button>
+        <button data-act="ex-3x3">Example: 3×3 matrix</button>
+        <button data-act="ex-free">Example: free layout</button>
+        <hr>
+        <button data-act="svg-drawing">Download drawing (SVG)</button>
+        <button data-act="svg-membrane">Download membrane template (SVG)</button>
+        <hr>
+        <button data-act="help">Shortcuts and help</button>
+      </div>
+    </div>
+    <button id="btn-export" title="Download the three plates as STL files — Ctrl+E">Export STL</button>
+    <button class="accent" id="btn-generate" title="Route the lines and show the plates in 3D — Ctrl+G">Generate 3D ▸</button>
+  </div>
+  <input type="file" id="file-input" accept=".mfl,.json,application/json" hidden>
+</header>
+
+<main>
+  <section class="stage">
+    <div class="tabs stage-tabs">
+      <button data-view="layout" class="on">Layout</button>
+      <button data-view="3d" id="tab-3d">3D view</button>
+    </div>
+    <div class="view" id="view-layout">
+      <canvas id="plate" tabindex="0" aria-label="Plate editor"></canvas>
+    </div>
+    <div class="view" id="view-3d" hidden>
+      <div id="three-host"></div>
+      <div class="empty3d" id="empty-3d">
+        <p class="big">Nothing generated yet</p>
+        <p>Lay out the plate, then press <b>Generate 3D</b>.</p>
+      </div>
+      <div class="panel3d" id="panel-3d" hidden>
+        <div class="head"><h4>3D view</h4><button id="panel-toggle" title="Show or hide the controls">Hide</button></div>
+        <div class="row">
+          <div class="seg small" id="mode3d"><button data-mode="xray" class="on">X-ray</button><button data-mode="solid">Solid</button></div>
+        </div>
+        <div class="row presets" id="presets">
+          <button data-p="iso">Iso</button><button data-p="top">Top</button><button data-p="front">Front</button><button data-p="side">Side</button><button data-p="below">Below</button>
+        </div>
+        <label class="slider">Explode <input type="range" id="explode" min="0" max="30" step="0.5" value="8"> <span id="explode-v">8</span> mm</label>
+        <div class="chips" id="chips">
+          <button data-show="top" class="on">Top plate</button><button data-show="middle" class="on">Middle plate</button>
+          <button data-show="bottom" class="on">Bottom plate</button><button data-show="membranes" class="on">Membranes</button>
+          <button data-show="bolts" class="on">Bolts</button><button data-show="names" class="on">Names</button>
+        </div>
+        <h4>Lines — click one to pick it out</h4>
+        <div class="legend" id="legend"></div>
+        <p class="muted" id="info3d"></p>
+        <button class="accent wide" id="btn-export2">Export STL files</button>
+      </div>
+    </div>
+  </section>
+
+  <aside class="side">
+    <div class="tabs">
+      <button data-tab="props" class="on">Properties</button>
+      <button data-tab="lines">Lines</button>
+      <button data-tab="checks" id="tab-checks">Checks</button>
+    </div>
+    <div class="tab" id="tab-props">
+      <div class="card">
+        <h4>Plate</h4>
+        <div class="form">
+          <label>Width X</label><input id="p-w" inputmode="decimal"><span class="unit">mm</span>
+          <label>Length Y</label><input id="p-l" inputmode="decimal"><span class="unit">mm</span>
+        </div>
+        <div class="actions"><button class="small" id="btn-plate">Apply</button></div>
+        <p class="muted" id="plate-info"></p>
+      </div>
+      <div class="card">
+        <h4>Selection</h4>
+        <div class="form" id="sel-form">
+          <label>Name</label><input id="s-name"><span></span>
+          <label>X</label><input id="s-x" inputmode="decimal"><span class="unit">mm</span>
+          <label>Y</label><input id="s-y" inputmode="decimal"><span class="unit">mm</span>
+          <label>Rotation</label><select id="s-rot"><option>0</option><option>90</option><option>180</option><option>270</option></select><span class="unit">°</span>
+          <label title="Closes the valve on the supply side">Row line</label><input id="s-row" list="line-names" placeholder="auto"><span></span>
+          <label title="Closes the valve on the dome side">Column line</label><input id="s-col" list="line-names" placeholder="auto"><span></span>
+        </div>
+        <datalist id="line-names"></datalist>
+        <div class="actions"><button class="small" id="btn-sel">Apply</button></div>
+        <p class="muted" id="sel-info"></p>
+      </div>
+      <div class="card key">
+        <h4>Key</h4>
+        <div><i class="k-window"></i> dome window (top plate)</div>
+        <div><i class="k-ch a"></i><i class="k-ch b"></i> chambers, coloured by their line</div>
+        <div><i class="k-bolt"></i> M3 bolt (hex = nut pocket)</div>
+      </div>
+    </div>
+    <div class="tab" id="tab-lines" hidden>
+      <p class="muted">Every actuator closes on two lines: its <b>row line</b> (supply-side valve) and its <b>column line</b> (dome-side valve). Its dome rises while both are vented. Names are automatic, like a keyboard matrix; select an actuator to put it on another line. Pick the face each inlet comes out on.</p>
+      <div class="card">
+        <h4>Supply (middle plate)</h4>
+        <div class="form"><label>Inlet face</label><select id="supply-face"></select><span></span></div>
+      </div>
+      <div class="card">
+        <h4>Control lines (bottom plate)</h4>
+        <table class="lines"><thead><tr><th></th><th>Line</th><th>Valves</th><th>Inlet face</th></tr></thead><tbody id="lines-body"></tbody></table>
+      </div>
+      <div class="actions"><button class="small" id="btn-reset-lines">Reset names to automatic</button></div>
+    </div>
+    <div class="tab" id="tab-checks-pane" hidden>
+      <p class="check-head" id="check-head"></p>
+      <ul class="checks" id="checks"></ul>
+      <p class="muted">Click a problem to select the parts involved.</p>
+    </div>
+  </aside>
+</main>
+
+<footer class="status">
+  <span id="status"></span>
+  <span class="spacer"></span>
+  <button class="pill good" id="pill">✓ Every rule holds</button>
+  <span id="coords" class="coords"></span>
+</footer>
+
+<dialog id="dlg-matrix">
+  <form method="dialog">
+    <h3>Place a matrix</h3>
+    <div class="form">
+      <label>Rows</label><input id="m-rows" type="number" min="1" max="50" value="3"><span></span>
+      <label>Columns</label><input id="m-cols" type="number" min="1" max="50" value="3"><span></span>
+      <label>Rotation</label><select id="m-rot"><option>0</option><option>90</option><option>180</option><option>270</option></select><span class="unit">°</span>
+    </div>
+    <label class="check"><input type="checkbox" id="m-packed" checked> Packed like the printed matrices (pitch = footprint + gap)</label>
+    <div class="form">
+      <label>Pitch X</label><input id="m-px" inputmode="decimal"><span class="unit">mm</span>
+      <label>Pitch Y</label><input id="m-py" inputmode="decimal"><span class="unit">mm</span>
+    </div>
+    <label class="check"><input type="checkbox" id="m-bolts" checked> Bolts at the footprint corners</label>
+    <p class="bad" id="m-msg"></p>
+    <div class="actions"><button value="cancel" formnovalidate>Cancel</button><button class="accent" value="ok" id="m-ok">Place</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlg-rules">
+  <form method="dialog">
+    <h3>Rules</h3>
+    <p class="muted">Every actuator has the construction of the printed matrices (3 plates, 2 membranes, two normally-open valves in series under a dome). These are the distances between things, in mm.</p>
+    <table class="rules"><thead><tr><th></th><th></th><th>Proven</th></tr></thead><tbody id="rules-body"></tbody></table>
+    <p class="muted" id="rules-help"></p>
+    <p class="bad" id="rules-msg"></p>
+    <div class="actions"><button type="button" id="rules-reset" class="left">Reset to proven</button><button value="cancel" formnovalidate>Cancel</button><button class="accent" value="ok" id="rules-ok">OK</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlg-progress" class="progress">
+  <h3 id="prog-title">Working…</h3>
+  <p class="muted" id="prog-msg"></p>
+  <div class="bar-anim"><div></div></div>
+</dialog>
+
+<dialog id="dlg-msg">
+  <form method="dialog">
+    <h3 id="msg-title"></h3>
+    <div id="msg-body"></div>
+    <div class="actions"><button class="accent" value="ok">OK</button></div>
+  </form>
+</dialog>
+
+<noscript><p style="padding:2em">mfcad Layout needs JavaScript.</p></noscript>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
