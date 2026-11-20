@@ -207,5 +207,13 @@ dialog.progress { min-width: 340px; }
 .panel3d.collapsed > :not(.head) { display: none; }
 .panel3d.collapsed .head h4 { margin-right: 10px; }
 
-.act-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 13px; }
-.act-row .seg { flex: 1; display: flex; }
+.seg.pressure { margin-left: 8px; }
+.seg.pressure button { padding: 6px 10px; font-size: 13px; }
+button.info {
+  width: 24px; height: 24px; padding: 0; border-radius: 50%; font: italic 700 13px/1 Georgia, serif;
+  color: var(--accent); border-color: var(--accent); background: var(--card);
+}
+button.info:hover { background: var(--accent-soft); }
+#msg-body table.cmp { border-collapse: collapse; font-size: 13px; margin: 8px 0; }
+#msg-body table.cmp th, #msg-body table.cmp td { border: 1px solid var(--border); padding: 5px 8px; text-align: left; vertical-align: top; }
+#msg-body table.cmp th { background: var(--card); }

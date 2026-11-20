@@ -196,7 +196,7 @@ and a column.
 
 ### Positive or negative pressure
 
-**Properties → Plate → Actuation** switches the whole design between two ways of
+The **Positive pressure / Negative pressure** switch in the toolbar, next to Snap, changes the whole design between two ways of
 driving it.
 
 | | Positive pressure | Negative pressure (vacuum) |

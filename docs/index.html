@@ -35,6 +35,11 @@
     <button class="flat" id="btn-fit" title="Shrink or grow the plate around everything">Fit plate</button>
     <button class="flat" id="btn-rules" title="Every distance, in mm">Rules…</button>
     <label class="snap">Snap <select id="snap"><option>0.1</option><option>0.25</option><option selected>0.5</option><option>1</option><option>2</option><option>5</option></select> mm</label>
+    <div class="seg pressure" id="act-seg" role="radiogroup" aria-label="Actuation">
+      <button data-act-mode="pressure" title="The actuators inflate (positive pressure)">Positive pressure</button>
+      <button data-act-mode="vacuum" title="The actuators are pulled in (negative pressure / vacuum)">Negative pressure</button>
+    </div>
+    <button class="info" id="btn-act-info" title="Positive or negative pressure: which one to choose" aria-label="About positive and negative pressure">i</button>
   </div>
   <div class="spacer"></div>
   <div class="group">
@@ -112,12 +117,6 @@
           <label>Length Y</label><input id="p-l" inputmode="decimal"><span class="unit">mm</span>
         </div>
         <div class="actions"><button class="small" id="btn-plate">Apply</button></div>
-        <div class="act-row"><span>Actuation</span>
-          <div class="seg small" id="act-seg">
-            <button data-act-mode="pressure" title="Positive pressure: domes inflate up through the windows">Positive</button>
-            <button data-act-mode="vacuum" title="Negative pressure: membranes are pulled down into a bowl in the middle plate (thicker middle plate)">Negative (vacuum)</button>
-          </div>
-        </div>
         <p class="muted" id="plate-info"></p>
       </div>
       <div class="card">

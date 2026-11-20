@@ -106,7 +106,7 @@ class Viewer3D:
         for f in m.features:
             d = f.data
             if f.kind == "pipe":
-                pts = densify(d["points"], d.get("bend", 0.0), 3)
+                pts = densify(d["points"], d.get("bend", 0.0), 12)
                 for a, b in zip(pts, pts[1:]):
                     self._tube(f.plate, f.net, a, b, d["d"] / 2.0)
             elif f.kind == "port":

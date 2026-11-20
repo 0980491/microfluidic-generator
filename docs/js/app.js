@@ -440,7 +440,7 @@ function fitPlate() {
 function setActuation(mode) {
   if (mode === S.lay.actuation) return;
   push(); S.lay.actuation = mode;
-  changed(mode === 'vacuum' ? 'Negative pressure: each window gets a bowl in the middle plate; see File → Shortcuts and help.' : 'Positive pressure: the domes inflate.');
+  changed(mode === 'vacuum' ? 'Negative pressure: each window gets a bowl in the middle plate. Press (i) next to the switch for how to run it.' : 'Positive pressure: the domes inflate.');
 }
 function setFace(lineName, face) {
   if ((S.lay.faces[lineName] ?? (lineName === SUPPLY ? 'front' : 'auto')) === face) return;
@@ -754,6 +754,17 @@ $('btn-generate').onclick = () => generate(); $('btn-export').onclick = exportSt
 $('btn-plate').onclick = applyPlate; $('btn-sel').onclick = applyProps; $('btn-reset-lines').onclick = resetLines;
 $('pill').onclick = () => sideTab('checks');
 document.querySelectorAll('[data-act-mode]').forEach((b) => b.addEventListener('click', () => setActuation(b.dataset.actMode)));
+$('btn-act-info').onclick = () => message('Positive or negative pressure?', `
+  <p>Choose how the whole plate will be driven. Both use the same layout, lines and routing; only the actuators and two plates change.</p>
+  <table class="cmp">
+    <tr><th></th><th>Positive pressure</th><th>Negative pressure (vacuum)</th></tr>
+    <tr><td>Use it when</td><td>you drive the plate with a compressor or a pump pushing air, like the matrices in the thesis</td><td>you drive it with a vacuum pump or a vacuum generator. Recommended: the membranes can't burst</td></tr>
+    <tr><td>The actuator</td><td>inflates up through its window</td><td>is pulled down into a bowl in the middle plate</td></tr>
+    <tr><td>Plates</td><td>middle 8.0 mm, top 3.0 mm</td><td>middle thicker to hold the bowls (9.7 mm with a 2 mm bowl), top a thin 1.2 mm sheet</td></tr>
+    <tr><td>An actuator moves while</td><td>both of its lines are vented</td><td>both of its lines have a stronger vacuum than the supply</td></tr>
+    <tr><td>Supply</td><td>pressure</td><td>a weaker vacuum than the lines (a bleed or regulator off the same pump)</td></tr>
+  </table>
+  <p class="muted">The bowl depth is in Rules. The vacuum logic follows from how the valves work but has not been tested on a printed part yet: try it on a small matrix first. The README that comes with every export explains how to run the mode you picked.</p>`);
 ['p-w', 'p-l'].forEach((id) => $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') applyPlate(); }));
 ['s-name', 's-x', 's-y', 's-row', 's-col'].forEach((id) => $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') applyProps(); }));
 $('s-rot').addEventListener('change', applyProps);

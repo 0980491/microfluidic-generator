@@ -204,16 +204,67 @@ def _stadium(w, l, n=32):
     return pts
 
 
+def bend_pieces(path, radius: float):
+    """Split a polyline whose corners are rounded with tangent arcs into
+    ("line", a, b) and ("arc", centre, start_vec, axis, degrees, arc_radius)
+    pieces, the same arcs `densify` samples."""
+    pts = [np.asarray(p, float) for p in path]
+    out, cur = [], pts[0]
+    for p0, p1, p2 in zip(pts, pts[1:], pts[2:]):
+        v0, v2 = p0 - p1, p2 - p1
+        l0, l2 = np.linalg.norm(v0), np.linalg.norm(v2)
+        u0, u2 = v0 / l0, v2 / l2
+        th = math.acos(float(np.clip(np.dot(u0, u2), -1.0, 1.0)))
+        if th < 1e-6 or abs(th - math.pi) < 1e-6:
+            continue
+        t = min(radius / math.tan(th / 2.0), 0.499 * l0, 0.499 * l2)
+        re = t * math.tan(th / 2.0)
+        a, b = p1 + u0 * t, p1 + u2 * t
+        bis = (u0 + u2) / np.linalg.norm(u0 + u2)
+        c = p1 + bis * (re / math.sin(th / 2.0))
+        va, vb = a - c, b - c
+        ang = math.degrees(math.acos(float(np.clip(np.dot(va, vb) / (np.linalg.norm(va) * np.linalg.norm(vb)), -1, 1))))
+        axis = np.cross(va, vb)
+        axis /= np.linalg.norm(axis)
+        out.append(("line", cur, a))
+        out.append(("arc", c, va, axis, ang, re))
+        cur = b
+    out.append(("line", cur, pts[-1]))
+    return out
+
+
+def _elbow(m3, c, va, axis, degrees, re, r, seg, fine):
+    """A true torus segment: the tube's circle swept round the bend."""
+    ring = m3.CrossSection.circle(r, seg).translate((re, 0.0))
+    tor = m3.Manifold.revolve(ring, 96 if fine else 48, degrees)
+    x = va / np.linalg.norm(va)
+    y = np.cross(axis, x)
+    return tor.transform(np.column_stack([x, y, axis, np.asarray(c, float)]))
+
+
 def feature_solid(m3, f: Feature, st: Stack = STACK, fine: bool = True):
-    seg = 32 if fine else 12
+    seg = 32 if fine else 20
     M = m3.Manifold
     d = f.data
     if f.kind == "pipe":
         r = d["d"] / 2.0
-        pts = densify(d["points"], d.get("bend", 0.0), 8 if fine else 3)
+        bend = d.get("bend", 0.0)
+        if bend > 0 and len(d["points"]) >= 3 and bend > r * 1.05:
+            # rounded corners: straight runs joined by true torus elbows
+            parts = []
+            for piece in bend_pieces(d["points"], bend):
+                if piece[0] == "line":
+                    _, a, b = piece
+                    if np.linalg.norm(b - a) > 1e-6:
+                        parts.append(_cyl(m3, a, b, r, seg))
+                else:
+                    _, c, va, axis, deg, re = piece
+                    parts.append(_elbow(m3, c, va, axis, deg, re, r, seg, fine))
+            return M.batch_boolean(parts, m3.OpType.Add)
+        pts = [np.asarray(q, float) for q in d["points"]]
         parts = [_cyl(m3, a, b, r, seg) for a, b in zip(pts, pts[1:]) if np.linalg.norm(b - a) > 1e-9]
         joints = pts[1:-1] if not d.get("route") else pts
-        parts += [_sphere(m3, p, r, seg) for p in joints]
+        parts += [_sphere(m3, q, r, seg) for q in joints]
         return M.batch_boolean(parts, m3.OpType.Add)
     if f.kind == "pocket":
         x, y = d["at"]

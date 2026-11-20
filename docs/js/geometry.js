@@ -101,6 +101,41 @@ export function densify(path, radius, n = 8) {
   return out;
 }
 
+// Split a polyline whose corners are rounded with tangent arcs into straight
+// runs and arcs (the same arcs densify samples).
+export function bendPieces(path, radius) {
+  const pts = path.map((p) => [...p]);
+  const out = [];
+  let cur = pts[0];
+  for (let q = 0; q + 2 < pts.length; q++) {
+    const [p0, p1, p2] = [pts[q], pts[q + 1], pts[q + 2]];
+    const v0 = sub(p0, p1), v2 = sub(p2, p1);
+    const l0 = norm(v0), l2 = norm(v2);
+    const u0 = mul(v0, 1 / l0), u2 = mul(v2, 1 / l2);
+    const th = Math.acos(Math.max(-1, Math.min(1, dot(u0, u2))));
+    if (th < 1e-6 || Math.abs(th - Math.PI) < 1e-6) continue;
+    const t = Math.min(radius / Math.tan(th / 2), 0.499 * l0, 0.499 * l2);
+    const re = t * Math.tan(th / 2);
+    const a = add(p1, mul(u0, t)), b = add(p1, mul(u2, t));
+    const bis = unit(add(u0, u2));
+    const c = add(p1, mul(bis, re / Math.sin(th / 2)));
+    const va = sub(a, c), vb = sub(b, c);
+    const ang = Math.acos(Math.max(-1, Math.min(1, dot(va, vb) / (norm(va) * norm(vb))))) * 180 / Math.PI;
+    out.push(['line', cur, a], ['arc', c, va, unit(cross(va, vb)), ang, re]);
+    cur = b;
+  }
+  out.push(['line', cur, pts[pts.length - 1]]);
+  return out;
+}
+
+// a true torus segment: the tube's circle swept round the bend
+function elbow(A, c, va, axis, deg, re, r, seg, fine) {
+  const ring = A.k(A.k(A.w.CrossSection.circle(r, seg)).translate([re, 0]));
+  const tor = A.k(A.w.Manifold.revolve(ring, fine ? 96 : 48, deg));
+  const x = unit(va), y = cross(axis, x);
+  return A.k(tor.transform([...x, 0, ...y, 0, ...axis, 0, ...c, 1]));
+}
+
 export function stadium(w, l, n = 32) {
   const r = Math.min(w, l) / 2, pts = [];
   if (w >= l) {
@@ -132,10 +167,18 @@ const union = (A, list) => (list.length === 1 ? list[0] : A.k(A.w.Manifold.union
 
 export function featureSolid(A, f, st = STACK, fine = true) {
   const M = A.w.Manifold, d = f.data;
-  const seg = fine ? 32 : 12;
+  const seg = fine ? 32 : 20;
   if (f.kind === 'pipe') {
-    const r = d.d / 2;
-    const pts = densify(d.points, d.bend || 0, fine ? 8 : 3);
+    const r = d.d / 2, bend = d.bend || 0;
+    if (bend > 0 && d.points.length >= 3 && bend > r * 1.05) {
+      const parts = [];
+      for (const piece of bendPieces(d.points, bend)) {
+        if (piece[0] === 'line') { if (norm(sub(piece[2], piece[1])) > 1e-6) parts.push(cyl(A, piece[1], piece[2], r, seg)); }
+        else parts.push(elbow(A, piece[1], piece[2], piece[3], piece[4], piece[5], r, seg, fine));
+      }
+      return union(A, parts);
+    }
+    const pts = d.points.map((q) => [...q]);
     const parts = [];
     for (let i = 0; i + 1 < pts.length; i++) if (norm(sub(pts[i + 1], pts[i])) > 1e-9) parts.push(cyl(A, pts[i], pts[i + 1], r, seg));
     const joints = d.route ? pts : pts.slice(1, -1);

@@ -202,6 +202,7 @@ class App:
         h = tk.Menu(m, tearoff=False)
         h.add_command(label="Shortcuts", command=self.help_keys)
         h.add_command(label="How the logic works", command=self.help_logic)
+        h.add_command(label="Positive or negative pressure?", command=self.help_actuation)
         h.add_command(label="About", command=self.about)
         m.add_cascade(label="Help", menu=h)
         self.root.config(menu=m)
@@ -209,7 +210,8 @@ class App:
     def _header(self):
         bar = ttk.Frame(self.root, style="Bar.TFrame", padding=(12, 8))
         bar.pack(side="top", fill="x")
-        tk.Frame(self.root, bg=theme.BORDER, height=1).pack(side="top", fill="x")
+        self._header_rule = tk.Frame(self.root, bg=theme.BORDER, height=1)
+        self._header_rule.pack(side="top", fill="x")
         logo = tk.Canvas(bar, width=26, height=26, bg=theme.CARD, highlightthickness=0)
         logo.pack(side="left")
         logo.create_oval(3, 3, 23, 23, fill=theme.ACCENT, outline="")
@@ -234,7 +236,9 @@ class App:
             b = ttk.Button(bar, text=text, command=fn, style="Flat.TButton")
             b.pack(side="left", padx=1)
             Tooltip(b, tip)
-        ttk.Frame(bar, style="Bar.TFrame", width=10).pack(side="left")
+        # second row: snap and pressure on the left, the outputs on the right
+        bar = ttk.Frame(self.root, style="Bar.TFrame", padding=(12, 0, 12, 8))
+        bar.pack(side="top", fill="x", before=self._header_rule)
         ttk.Label(bar, text="Snap", style="Bar.TLabel").pack(side="left")
         self.grid_var = tk.StringVar(value=_fmt(self.lay.grid))
         sp = ttk.Combobox(bar, width=5, textvariable=self.grid_var,
@@ -244,6 +248,21 @@ class App:
         sp.bind("<<ComboboxSelected>>", lambda e: self._set_grid())
         sp.bind("<Return>", lambda e: self._set_grid())
         sp.bind("<FocusOut>", lambda e: self._set_grid())
+
+        self.actuation = tk.StringVar(value="pressure")
+        seg = tk.Frame(bar, bg=theme.BORDER, padx=1, pady=1)
+        seg.pack(side="left", padx=(12, 4))
+        segi = ttk.Frame(seg, style="Bar.TFrame")
+        segi.pack()
+        for val, text, tip in (("pressure", "Positive pressure", "The actuators inflate (positive pressure)"),
+                               ("vacuum", "Negative pressure", "The actuators are pulled in (negative pressure / vacuum)")):
+            b = ttk.Radiobutton(segi, text=text, value=val, variable=self.actuation, style="Tool.TRadiobutton",
+                                command=lambda: self._set_actuation(self.actuation.get()))
+            b.pack(side="left")
+            Tooltip(b, tip)
+        info = ttk.Button(bar, text="ⓘ", width=2, style="Flat.TButton", command=self.help_actuation)
+        info.pack(side="left")
+        Tooltip(info, "Positive or negative pressure: which one to choose")
 
         g = ttk.Button(bar, text="Generate 3D  ▸", style="Accent.TButton", command=self.generate)
         g.pack(side="right")
@@ -275,21 +294,8 @@ class App:
         ttk.Button(pf, text="Apply", style="Small.TButton", command=self.apply_plate).grid(
             row=2, column=3, sticky="e", padx=(8, 0))
         pf.columnconfigure(3, weight=1)
-        ttk.Label(pf, text="Actuation", style="Card.TLabel").grid(row=3, column=0, sticky="w", pady=(8, 2))
-        self.actuation = tk.StringVar(value="pressure")
-        seg = tk.Frame(pf, bg=theme.BORDER, padx=1, pady=1)
-        seg.grid(row=3, column=1, columnspan=3, sticky="w", padx=6, pady=(8, 2))
-        segi = ttk.Frame(seg, style="Card.TFrame")
-        segi.pack()
-        for val, text, tip in (("pressure", "Positive", "Positive pressure: domes inflate up through the windows"),
-                               ("vacuum", "Negative (vacuum)", "Negative pressure: membranes are pulled down into a bowl "
-                                                               "in the middle plate (thicker middle plate)")):
-            b = ttk.Radiobutton(segi, text=text, value=val, variable=self.actuation, style="Tool.TRadiobutton",
-                                command=lambda: self._set_actuation(self.actuation.get()))
-            b.pack(side="left")
-            Tooltip(b, tip)
         self.plate_info = ttk.Label(pf, style="CardMuted.TLabel", wraplength=270, justify="left")
-        self.plate_info.grid(row=4, column=0, columnspan=4, sticky="w", pady=(6, 0))
+        self.plate_info.grid(row=3, column=0, columnspan=4, sticky="w", pady=(6, 0))
 
         outer, sf = theme.card(tab, "Selection")
         outer.pack(fill="x", pady=(10, 0))
@@ -1041,8 +1047,8 @@ class App:
             return
         self._push()
         self.lay.actuation = mode
-        self._changed("Negative pressure: each window gets a bowl in the middle plate; see Help → How "
-                      "the logic works." if mode == "vacuum" else "Positive pressure: the domes inflate.")
+        self._changed("Negative pressure: each window gets a bowl in the middle plate; press ⓘ next to "
+                      "the switch for how to run it." if mode == "vacuum" else "Positive pressure: the domes inflate.")
 
     def _set_face(self, line, face):
         if self.lay.faces.get(line, "front" if line == SUPPLY else "auto") == face:
@@ -1372,6 +1378,25 @@ class App:
             "Shift+click adds to the selection; drag on empty space to box-select.",
             "",
             "3D view: drag to orbit, right/middle drag to pan, wheel to zoom.",
+        ]), parent=self.root)
+
+    def help_actuation(self):
+        messagebox.showinfo("Positive or negative pressure?", "\n".join([
+            "Choose how the whole plate will be driven. Both use the same layout, lines and "
+            "routing; only the actuators and two plates change.",
+            "",
+            "POSITIVE PRESSURE — use it with a compressor or a pump pushing air, like the "
+            "matrices in the thesis. The actuator inflates up through its window. Middle plate "
+            "8.0 mm, top 3.0 mm. An actuator moves while both of its lines are vented.",
+            "",
+            "NEGATIVE PRESSURE (vacuum) — use it with a vacuum pump or generator. Recommended: "
+            "the membranes can't burst. The actuator is pulled down into a bowl in the middle "
+            "plate (9.7 mm thick with a 2 mm bowl); the top plate is a thin 1.2 mm sheet. Run "
+            "the supply at a weaker vacuum than the lines; an actuator moves while both of its "
+            "lines have a stronger vacuum than the supply.",
+            "",
+            "The bowl depth is in Rules. The vacuum logic follows from how the valves work but "
+            "has not been tested on a printed part yet: try it on a small matrix first.",
         ]), parent=self.root)
 
     def help_logic(self):
