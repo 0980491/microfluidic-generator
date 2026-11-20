@@ -34,6 +34,20 @@ room to edit.
 
 The rest of this page is for the desktop program.
 
+## Printed parts: the original matrices and the bench
+
+[`hardware/`](hardware/) has ready-to-print STL files from the thesis project:
+
+- [`hardware/matrices/`](hardware/matrices/): the original **2x2, 3x3 and 4x4 matrices**,
+  with the top, middle and bottom plate of each (`matrix_2x2_top_plate.stl` …).
+- [`hardware/assembly/`](hardware/assembly/): the bench assembly. It has the **manifold for
+  4 solenoid valves** (`manifold_4_valves_M5_inlet.stl`) and the **adapters from the
+  valve outlet to M5 and M6 fittings** (`adapter_valve_to_M5.stl`,
+  `adapter_valve_to_M6.stl`).
+
+[`hardware/README.md`](hardware/README.md) has the sizes, the assembly order, and what was
+tested.
+
 ## Install
 
 There are two ways:
