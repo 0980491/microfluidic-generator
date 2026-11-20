@@ -1,7 +1,15 @@
 # Printed parts
 
-Ready-to-print STL files from the thesis project. Every file is already oriented for
-printing: the contact face is on the bed.
+Ready-to-print STL files from the thesis project. The plates are already oriented for
+printing, with the contact face on the bed. Slicers drop the moulds onto the bed
+automatically.
+
+| Folder | What's in it |
+|---|---|
+| `matrices/` | The original 2x2, 3x3 and 4x4 matrices |
+| `finger/` | The finger actuator (1×3) |
+| `molds/` | The moulds the membranes were cast in |
+| `assembly/` | The bench: the solenoid manifold and the valve adapters |
 
 ## `matrices/`: the original row/column matrices
 
@@ -32,6 +40,47 @@ Files: `matrix_<size>_top_plate.stl`, `matrix_<size>_middle_plate.stl`,
 - **Lines:** each row and column line has a needle inlet on a side face of the
   bottom plate. The supply goes into the middle plate.
 - **Logic:** a dome rises while both of its lines are vented.
+
+## `finger/`: the finger actuator
+
+The 1×3 matrix worn on a finger, one actuator per phalanx, used for the skin test.
+- **Lines:** one row line (`ROW`) is a shared enable; three column lines (`COL1`–`COL3`)
+  pick the phalanx.
+- **Plates:** 74.8 × 35.7 mm, held by 12 M3 × 22 bolts.
+- **Top saddle:** the top plate is a saddle with a groove for the finger.
+- **Strap loops:** the bottom plate has 2 × 3 loops on its back face for a 12.6 mm
+  velcro strap.
+
+| File | What it is |
+|---|---|
+| `finger_top_saddle.stl` | Top plate: saddle with the finger groove and the three windows, 4.0 mm |
+| `finger_middle_plate.stl` | Middle plate: valves and supply, 8.0 mm |
+| `finger_bottom_plate.stl` | Bottom plate: control chambers and lines, 8.3 mm plus 4.6 mm strap loops |
+| `finger_membrane_template.svg` | 1:1 template to cut the two membranes (outline and bolt holes) |
+
+The bolt tips stand about 1 mm proud of the back face; a shorter bolt or a thin
+washer fixes that.
+
+## `molds/`: membrane moulds
+
+Trays to cast the silicone membranes in: a 2 mm floor, 2.5 mm walls, and a pocket
+exactly as deep as the membrane. Pour, scrape level with the rim, cure, then cut the
+bolt holes.
+- **Silicone:** Elastómero HC 25, A:B 1:1. De-gas in vacuum cycles of about 1 minute
+  until no more bubbles surface, then cure for 1 to 2 days.
+- **Thicknesses:** the 1 mm membranes were used under the actuators; the 2 mm ones
+  in the valves.
+
+| Files | Membrane | For |
+|---|---|---|
+| `membrane_mold_30x30_{1,2}mm_transistor.stl` | 30 × 30 mm | The first single transistor |
+| `membrane_mold_38x38_{1,2}mm_matrix_2x2.stl` | 38 × 38 mm | The 2x2 matrix |
+| `membrane_mold_52x52_{1,2}mm_matrix_3x3.stl` | 52 × 52 mm | The 3x3 matrix |
+| `membrane_mold_66x66_{1,2}mm_matrix_4x4.stl` | 66 × 66 mm | The 4x4 matrix |
+| `membrane_mold_43x78_{1.5,2}mm_finger.stl` | 43.5 × 74 mm pocket | The finger actuator; cut to the plate outline with the template |
+
+The program in this repository writes a membrane template for any layout (Export
+STL → `<name>_membrane.svg`). A mould only has to be a tray at least that big.
 
 ## `assembly/`: the pneumatic bench
 
