@@ -6,6 +6,7 @@ export const FORMAT = 'mfcad-layout';
 export const VERSION = 1;
 export const SUPPLY = 'S';
 export const FACES = ['auto', 'left', 'right', 'front', 'back'];
+export const ACTUATIONS = ['pressure', 'vacuum'];
 
 export const CELL = Object.freeze({
   col: 6.0, seat_gap: 3.2, pocket_d: 2.4, chamber_l: 3.8, chamber_w: 7.0,
@@ -26,12 +27,13 @@ export const RULE_FIELDS = [
   ['bolt_feature', 'Bolt hole to chamber / seat', 'Wall between a bolt hole and a control chamber or a valve seat (0.7 on the printed matrices).'],
   ['needle_depth', 'Needle bore, line inlets', 'How far the dispensing needle goes into a row/column inlet before it lands on the stop (3D only).'],
   ['supply_depth', 'Needle bore, supply inlet', 'The same for the supply inlet in the middle plate (3D only).'],
+  ['bowl_depth', 'Vacuum bowl depth', 'Negative pressure only: depth of the rounded bowl in the middle plate that the membrane is pulled into. At most half the window diameter (a hemisphere).'],
 ];
 
 export const PROVEN = Object.freeze({
   pitch_x: 14.0, pitch_y: 11.9, act_gap: 0.0, act_edge: 4.8, window_d: 7.0,
   bolt_d: 3.8, nut_af: 5.9, bolt_edge: 4.8, bolt_spacing: 8.0, bolt_window: 2.0,
-  bolt_feature: 0.7, needle_depth: 7.0, supply_depth: 8.0,
+  bolt_feature: 0.7, needle_depth: 7.0, supply_depth: 8.0, bowl_depth: 2.0,
 });
 
 export function ruleFloors(rules) {
@@ -43,7 +45,7 @@ export function ruleFloors(rules) {
   return {
     pitch_x: r2(Math.max(spanX, rules.window_d) + c.wall),
     pitch_y: r2(2 * Math.max(up, down) + c.wall),
-    window_d: 1.0, bolt_d: 1.0, nut_af: rules.bolt_d, needle_depth: 2.0, supply_depth: 2.0,
+    window_d: 1.0, bolt_d: 1.0, nut_af: rules.bolt_d, needle_depth: 2.0, supply_depth: 2.0, bowl_depth: 0.5,
   };
 }
 
@@ -115,6 +117,7 @@ export class Layout {
     this.bolts = o.bolts || [];
     this.grid = o.grid ?? 0.5;
     this.faces = o.faces || {};
+    this.actuation = ACTUATIONS.includes(o.actuation) ? o.actuation : 'pressure';
   }
   items() { return [...this.actuators, ...this.bolts]; }
   get(name) { return this.items().find((it) => it.name === name) || null; }
@@ -136,6 +139,7 @@ export class Layout {
       format: FORMAT, version: VERSION, units: 'mm',
       plate: { width: r4(this.width), length: r4(this.length) },
       construction: '3 rigid plates (top, middle, bottom) + 2 membranes; actuator = mfcad matrix cell (2 NO valves in series + dome)',
+      actuation: this.actuation,
       rules: { ...this.rules },
       editor: { grid: this.grid },
       actuators: this.actuators.map((a) => a.toDict()),
@@ -156,7 +160,7 @@ export class Layout {
     const faces = {};
     for (const [k, v] of Object.entries(d.lines || {})) if (FACES.includes(v.face)) faces[k] = v.face;
     return new Layout({ width: Number(d.plate.width), length: Number(d.plate.length), rules,
-      actuators: acts, bolts, grid: Number((d.editor || {}).grid ?? 0.5), faces });
+      actuators: acts, bolts, grid: Number((d.editor || {}).grid ?? 0.5), faces, actuation: d.actuation });
   }
   copy() { return Layout.fromDict(JSON.parse(JSON.stringify(this.toDict()))); }
 }

@@ -177,7 +177,7 @@ export class Viewer3D {
     this.focus = null;
     this._legend();
     const T = model.thickness, r = model.routing;
-    this.infoEl.textContent = `Plates ${W} × ${L} mm; bottom ${T.bottom}, middle ${T.middle}, top ${T.top} mm. Lines on ${r.levels} level${r.levels > 1 ? 's' : ''}. Click a channel to pick its line.`;
+    this.infoEl.textContent = `Plates ${W} × ${L} mm; bottom ${T.bottom}, middle ${T.middle}, top ${T.top} mm. ${model.actuation === 'vacuum' ? 'Negative pressure (bowls). ' : ''}Lines on ${r.levels} level${r.levels > 1 ? 's' : ''}. Click a channel to pick its line.`;
     this._layout();
     this.setMode(this.mode);
     this.resize();

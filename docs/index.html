@@ -112,6 +112,12 @@
           <label>Length Y</label><input id="p-l" inputmode="decimal"><span class="unit">mm</span>
         </div>
         <div class="actions"><button class="small" id="btn-plate">Apply</button></div>
+        <div class="act-row"><span>Actuation</span>
+          <div class="seg small" id="act-seg">
+            <button data-act-mode="pressure" title="Positive pressure: domes inflate up through the windows">Positive</button>
+            <button data-act-mode="vacuum" title="Negative pressure: membranes are pulled down into a bowl in the middle plate (thicker middle plate)">Negative (vacuum)</button>
+          </div>
+        </div>
         <p class="muted" id="plate-info"></p>
       </div>
       <div class="card">
@@ -136,7 +142,7 @@
       </div>
     </div>
     <div class="tab" id="tab-lines" hidden>
-      <p class="muted">Every actuator closes on two lines: its <b>row line</b> (supply-side valve) and its <b>column line</b> (dome-side valve). Its dome rises while both are vented. Names are automatic, like a keyboard matrix; select an actuator to put it on another line. Pick the face each inlet comes out on.</p>
+      <p class="muted" id="lines-text"></p>
       <div class="card">
         <h4>Supply (middle plate)</h4>
         <div class="form"><label>Inlet face</label><select id="supply-face"></select><span></span></div>

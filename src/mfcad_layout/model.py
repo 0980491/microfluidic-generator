@@ -22,6 +22,7 @@ FORMAT = "mfcad-layout"
 VERSION = 1
 SUPPLY = "S"
 FACES = ("auto", "left", "right", "front", "back")
+ACTUATIONS = ("pressure", "vacuum")
 
 
 @dataclass(frozen=True)
@@ -58,6 +59,7 @@ class Rules:
     bolt_feature: float = 0.7   # bolt hole to a chamber or a valve seat
     needle_depth: float = 7.0   # needle bore into a line inlet (3D)
     supply_depth: float = 8.0   # needle bore into the supply inlet (3D)
+    bowl_depth: float = 2.0     # vacuum: bowl under each window the membrane is pulled into
 
     @staticmethod
     def describe() -> list[tuple[str, str, str]]:
@@ -88,6 +90,9 @@ class Rules:
              "it lands on the stop (3D only)."),
             ("supply_depth", "Needle bore, supply inlet",
              "The same for the supply inlet in the middle plate (3D only)."),
+            ("bowl_depth", "Vacuum bowl depth",
+             "Negative pressure only: depth of the rounded bowl in the middle plate that "
+             "the membrane is pulled into. At most half the window diameter (a hemisphere)."),
         ]
 
     def floors(self) -> dict[str, float]:
@@ -104,6 +109,7 @@ class Rules:
             "nut_af": self.bolt_d,
             "needle_depth": 2.0,
             "supply_depth": 2.0,
+            "bowl_depth": 0.5,
         }
 
 
@@ -215,6 +221,7 @@ class Layout:
     bolts: list[Bolt] = field(default_factory=list)
     grid: float = 0.5
     faces: dict[str, str] = field(default_factory=dict)   # line -> inlet face
+    actuation: str = "pressure"   # 'pressure' (domes inflate) or 'vacuum' (pulled into bowls)
 
     # ---- lookup and naming ----
     def items(self):
@@ -247,6 +254,7 @@ class Layout:
             "plate": {"width": round(self.width, 4), "length": round(self.length, 4)},
             "construction": "3 rigid plates (top, middle, bottom) + 2 membranes; "
                             "actuator = mfcad matrix cell (2 NO valves in series + dome)",
+            "actuation": self.actuation,
             "rules": asdict(self.rules),
             "editor": {"grid": self.grid},
             "actuators": [a.to_dict() for a in self.actuators],
@@ -274,7 +282,8 @@ class Layout:
             raise ValueError("two items share a name")
         lay = cls(width=float(d["plate"]["width"]), length=float(d["plate"]["length"]),
                   rules=rules, actuators=acts, bolts=bolts,
-                  grid=float(d.get("editor", {}).get("grid", 0.5)), faces=faces)
+                  grid=float(d.get("editor", {}).get("grid", 0.5)), faces=faces,
+                  actuation=d.get("actuation", "pressure") if d.get("actuation") in ACTUATIONS else "pressure")
         return lay
 
     def save(self, path) -> None:

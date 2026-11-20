@@ -12,6 +12,10 @@ const $ = (id) => document.getElementById(id);
 const fmt = (v) => String(+(+v).toFixed(3));
 const LINE_NAME = /^[A-Za-z0-9_\-.']{1,12}$/;
 const STORE = 'mfcad-layout:autosave';
+const LINES_TEXT = {
+  pressure: 'Every actuator sits on two lines: its <b>row line</b> (supply-side valve) and its <b>column line</b> (dome-side valve). Pressurising a line closes its valves, so an actuator inflates while both of its lines are vented. Names are automatic, like a keyboard matrix; select an actuator to put it on another line. Pick the face each inlet comes out on.',
+  vacuum: 'Every actuator sits on two lines: its <b>row line</b> (supply-side valve) and its <b>column line</b> (dome-side valve). Under vacuum a valve stays shut until its line has a stronger vacuum than the supply, so an actuator is pulled in while both of its lines are under vacuum. Names are automatic, like a keyboard matrix; select an actuator to put it on another line. Pick the face each inlet comes out on.',
+};
 const HINTS = {
   select: 'Click to select, Shift+click to add, drag to move or box-select. Arrows nudge, R rotates, Del deletes.',
   actuator: 'Click to place an actuator (its dome centre). R rotates it. Esc to stop.',
@@ -85,6 +89,8 @@ function refresh() {
   if ($('snap').value !== String(S.lay.grid)) { const o = new Option(String(S.lay.grid)); $('snap').add(o); $('snap').value = String(S.lay.grid); }
   const nl = new Set(Object.values(S.lines).flat()).size;
   $('plate-info').textContent = `${S.lay.actuators.length} actuators on ${nl} lines, ${S.lay.bolts.length} bolts. Origin at the bottom-left corner, seen from the top plate.`;
+  document.querySelectorAll('[data-act-mode]').forEach((b) => b.classList.toggle('on', b.dataset.actMode === S.lay.actuation));
+  $('lines-text').innerHTML = LINES_TEXT[S.lay.actuation];
   fillChecks(); fillProps(); fillLines();
   $('tab-3d').textContent = S.routing && !routesCurrent() ? '3D view (out of date)' : '3D view';
   redraw();
@@ -187,6 +193,11 @@ function drawAct(a, st, ghostOk = null, under = false) {
   for (const [sx, sy, sr] of a.seats()) circleW(sx, sy, sr, ghost ? null : '#ffffff', ln || '#5c6773', 1);
   const [wx, wy, wr] = a.window(R);
   circleW(wx, wy, wr, ghost ? null : '#d0ebff', ln || '#1c7ed6', st !== 'normal' || ghost ? 2.2 : 1.4);
+  if (S.lay.actuation === 'vacuum' && !ghost) {
+    const [sx, sy] = W2S(wx, wy);
+    ctx.beginPath(); ctx.arc(sx, sy, wr * 0.62 * S.scale, 0, Math.PI * 2);
+    ctx.strokeStyle = ln || '#1c7ed6'; ctx.lineWidth = 1; ctx.setLineDash([3, 2]); ctx.stroke(); ctx.setLineDash([]);
+  }
   circleW(wx, wy, 0.9, ln || '#1c7ed6', null);
   if (S.scale >= 4 && !ghost) {
     const [sx, sy] = W2S(wx, wy - wr - 0.3);
@@ -426,6 +437,11 @@ function fitPlate() {
   S.lay.width = Math.ceil((x1 - x0) * 10 - 1e-6) / 10; S.lay.length = Math.ceil((y1 - y0) * 10 - 1e-6) / 10;
   changed(`Plate fitted: ${fmt(S.lay.width)} × ${fmt(S.lay.length)} mm.`); fitView();
 }
+function setActuation(mode) {
+  if (mode === S.lay.actuation) return;
+  push(); S.lay.actuation = mode;
+  changed(mode === 'vacuum' ? 'Negative pressure: each window gets a bowl in the middle plate; see File → Shortcuts and help.' : 'Positive pressure: the domes inflate.');
+}
 function setFace(lineName, face) {
   if ((S.lay.faces[lineName] ?? (lineName === SUPPLY ? 'front' : 'auto')) === face) return;
   push(); S.lay.faces[lineName] = face; changed(`${lineName === SUPPLY ? 'Supply' : lineName} inlet: ${face} face.`);
@@ -579,6 +595,7 @@ function openRules() {
     const nw = { ...S.lay.rules, ...vals }, floors = ruleFloors(nw);
     const bad = Object.entries(vals).filter(([k, v]) => v < (floors[k] ?? 0) || (v <= 0 && k !== 'act_gap')).map(([k]) => `${k} must be ≥ ${floors[k] ?? 0}`);
     if (vals.act_gap < 0) bad.push("act_gap can't be negative");
+    if (vals.bowl_depth > vals.window_d / 2 + 1e-9) bad.push("the bowl can't be deeper than half the window (a hemisphere)");
     if (bad.length) { e.preventDefault(); $('rules-msg').textContent = bad.join('; '); return; }
     const below = RULE_FIELDS.filter(([k]) => vals[k] < PROVEN[k] - 1e-9 && k !== 'bolt_d' && k !== 'nut_af').map(([, l]) => l);
     if (below.length && !confirmed) { e.preventDefault(); confirmed = true; $('rules-msg').textContent = `Below the printed matrices (untested): ${below.join(', ')}. Press OK again to use them anyway.`; return; }
@@ -598,9 +615,15 @@ function help() {
   <p><b>V</b> select · <b>A</b> actuator · <b>B</b> bolt · <b>M</b> matrix · <b>R</b> rotate · <b>Del</b> delete · <b>Esc</b> back to select<br>
   Arrows nudge (Shift ×10) · Wheel zoom · Right or middle drag pan · <b>F</b> fit<br>
   <b>Ctrl+Z / Ctrl+Y</b> undo / redo · <b>Ctrl+A</b> select all · <b>Ctrl+S</b> save · <b>Ctrl+G</b> generate 3D · <b>Ctrl+E</b> export STL</p>
-  <p><b>The logic.</b> Each actuator is supply → valve 1 (row line) → valve 2 (column line) → dome. Pressurising a line closes every
-  valve it feeds, so with the supply on a dome rises only while both of its lines are vented, the way a keyboard matrix picks one key.
-  Rows are named R1, R2… from the top, columns C1, C2… from the left. Give an actuator another line name to wire it however you like.</p>
+  <p><b>The logic.</b> Each actuator is supply → valve 1 (row line) → valve 2 (column line) → membrane. Rows are named R1, R2… from the top,
+  columns C1, C2… from the left; give an actuator another line name to wire it however you like. Pick the mode in Properties → Actuation.</p>
+  <p><b>Positive pressure.</b> Pressurising a line closes every valve it feeds, so with the supply on an actuator inflates only while
+  both of its lines are vented, the way a keyboard matrix picks one key.</p>
+  <p><b>Negative pressure (vacuum).</b> The middle plate gets a bowl under every window and the membrane is pulled down into it, so it
+  can't burst. The valves flip: the vacuum in a channel pulls its valve shut, so a valve stays closed while its line is vented and opens
+  when its line has a stronger vacuum than the supply. Run the supply at a weaker vacuum and the lines at full vacuum; an actuator is
+  pulled in while both of its lines are under vacuum. To release, vent the supply with the lines still under vacuum. (Reasoned from the
+  valve design; test it on a small matrix first.)</p>
   <p><b>Generate 3D</b> routes every line through the bottom plate (crossing lines take different levels) and the supply through the
   middle plate, and shows them inside the plates. <b>Export STL</b> downloads a zip with the three plates (already face down for
   printing), the membrane template, a drawing of the channels and a README saying which inlet is which.</p>
@@ -730,6 +753,7 @@ $('btn-rotate').onclick = rotate; $('btn-corners').onclick = cornerBolts; $('btn
 $('btn-generate').onclick = () => generate(); $('btn-export').onclick = exportStl; $('btn-export2').onclick = exportStl;
 $('btn-plate').onclick = applyPlate; $('btn-sel').onclick = applyProps; $('btn-reset-lines').onclick = resetLines;
 $('pill').onclick = () => sideTab('checks');
+document.querySelectorAll('[data-act-mode]').forEach((b) => b.addEventListener('click', () => setActuation(b.dataset.actMode)));
 ['p-w', 'p-l'].forEach((id) => $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') applyPlate(); }));
 ['s-name', 's-x', 's-y', 's-row', 's-col'].forEach((id) => $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') applyProps(); }));
 $('s-rot').addEventListener('change', applyProps);

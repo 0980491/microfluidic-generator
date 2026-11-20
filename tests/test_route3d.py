@@ -172,3 +172,28 @@ def test_file_keeps_lines_and_faces(tmp_path):
     assert back.faces == lay.faces
     assert back.get("A5").row_line == "X" and back.get("A5").col_line == "Y"
     assert back.to_dict() == lay.to_dict()
+
+
+def test_vacuum_mode(tmp_path):
+    """Negative pressure: a bowl under every window, a thicker middle plate,
+    still sealed, and the file keeps the mode."""
+    pytest.importorskip("manifold3d")
+    from mfcad_layout import build3d
+    lay = free_layout()
+    lay.actuation = "vacuum"
+    r = route_layout(lay)
+    m = build3d.build_model(lay, r)
+    assert m.thickness["middle"] == pytest.approx(STACK.middle_t("vacuum", lay.rules.bowl_depth)) == 9.7
+    assert sum(f.kind == "bowl" for f in m.features) == len(lay.actuators)
+    assert m.thickness["top"] == STACK.top_t_vacuum == 1.2
+    written, problems = build3d.export(lay, m, tmp_path, "v")
+    assert problems == []
+    assert "NEGATIVE PRESSURE" in (tmp_path / "v_README.txt").read_text()
+    p = tmp_path / "v.mfl"
+    lay.save(p)
+    assert Layout.load(p).actuation == "vacuum"
+    # pressure mode is unchanged: no bowls, 8 mm middle plate
+    lay.actuation = "pressure"
+    m2 = build3d.build_model(lay, r)
+    assert m2.thickness["middle"] == 8.0 and m2.thickness["top"] == 3.0
+    assert not any(f.kind == "bowl" for f in m2.features)

@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import Module from 'manifold-3d';
 import { Layout } from '../docs/js/model.js';
 import { routeLayout } from '../docs/js/route.js';
-import { buildModel } from '../docs/js/geometry.js';
+import { buildModel, makePlates } from '../docs/js/geometry.js';
 import { exportFiles } from '../docs/js/export.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -23,9 +23,16 @@ sys.path.insert(0, ${JSON.stringify(path.join(root, 'src'))})
 from mfcad_layout.model import Layout
 from mfcad_layout.route import route_layout
 out = {}
+from mfcad_layout import build3d
 for f in sys.argv[1:]:
-    r = route_layout(Layout.load(f))
-    out[f] = {"ok": r.ok, "levels": r.levels, "nets": {k: v.paths for k, v in r.nets.items()}}
+    lay = Layout.load(f)
+    r = route_layout(lay)
+    vols = {}
+    for mode in ("pressure", "vacuum"):
+        lay.actuation = mode
+        plates, _ = build3d.make_plates(build3d.build_model(lay, r), check=False)
+        vols[mode] = {k: v.volume() for k, v in plates.items()}
+    out[f] = {"ok": r.ok, "levels": r.levels, "nets": {k: v.paths for k, v in r.nets.items()}, "vols": vols}
 print(json.dumps(out))`;
 const ref = JSON.parse(execFileSync(process.env.PYTHON || 'python3', ['-c', py, ...files], { encoding: 'utf8' }));
 const wasm = await Module(); wasm.setup();
@@ -38,8 +45,20 @@ for (const f of files) {
   if (r.ok !== P.ok || r.levels !== P.levels) diffs.push(`ok/levels js ${r.ok}/${r.levels} py ${P.ok}/${P.levels}`);
   for (const [n, paths] of Object.entries(P.nets)) if (!r.nets.has(n) || r4(r.nets.get(n).paths) !== r4(paths)) diffs.push(`${n} differs`);
   let problems = [];
-  if (r.ok) ({ problems } = await exportFiles(wasm, lay, buildModel(lay, r), 'check'));
+  for (const mode of ['pressure', 'vacuum']) {
+    lay.actuation = mode;
+    if (!r.ok) break;
+    const m = buildModel(lay, r);
+    ({ problems } = await exportFiles(wasm, lay, m, 'check'));
+    const { plates } = await makePlates(wasm, m, { check: false });
+    for (const [k, solid] of Object.entries(plates)) {
+      const v = solid.volume(), pv = P.vols[mode][k];
+      if (Math.abs(v - pv) > 1e-6 * pv) diffs.push(`${mode} ${k} volume js ${v.toFixed(3)} py ${pv.toFixed(3)}`);
+      solid.delete();
+    }
+    if (problems.length) break;
+  }
   bad += diffs.length + problems.length;
-  console.log(path.basename(f), diffs.length ? diffs : 'routes identical to Python', problems.length ? problems : 'export checks pass');
+  console.log(path.basename(f), diffs.length ? diffs : 'routes and plate volumes (positive and negative pressure) identical to Python', problems.length ? problems : 'export checks pass');
 }
 process.exit(bad ? 1 : 0);

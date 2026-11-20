@@ -206,3 +206,6 @@ dialog.progress { min-width: 340px; }
 .panel3d.collapsed { width: auto; }
 .panel3d.collapsed > :not(.head) { display: none; }
 .panel3d.collapsed .head h4 { margin-right: 10px; }
+
+.act-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 13px; }
+.act-row .seg { flex: 1; display: flex; }

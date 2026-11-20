@@ -38,6 +38,7 @@ class Stack:
     level2: float = 5.8            # middle plate: the supply
     mid_t: float = 8.0
     top_t: float = 3.0
+    top_t_vacuum: float = 1.2      # under vacuum the top plate only clamps the membrane
     bottom_t_min: float = 7.7      # level 0 over the nut pockets
     nut_depth: float = 2.5
     bore_d: float = 1.8            # needle bore (a 16G needle is 1.64)
@@ -46,6 +47,9 @@ class Stack:
     needle_stop: float = 1.2       # neck the needle lands on
     neck_len: float = 1.0
     corner_key: float = 3.0        # chamfer on one corner of every plate
+    bleed_w: float = 0.8           # vacuum bowls: radial grooves so the membrane
+    bleed_d: float = 0.4           # can't seal the riser and trap air at the rim
+    bleeds: int = 3
 
     @property
     def r(self) -> float:
@@ -70,6 +74,20 @@ class Stack:
         t = max(self.bottom_t_min,
                 self.level_z(levels - 1) + self.port_r + self.floor)
         return math.ceil(t * 10.0 - 1e-6) / 10.0
+
+    def middle_t(self, actuation: str = "pressure", bowl_depth: float = 0.0) -> float:
+        """Middle plate thickness. Under vacuum each window gets a bowl in the
+        middle plate's top face, with a floor over the supply level below it."""
+        if actuation != "vacuum":
+            return self.mid_t
+        t = self.level2 + self.r + self.floor + bowl_depth
+        return max(self.mid_t, math.ceil(t * 10.0 - 1e-6) / 10.0)
+
+    def top_thickness(self, actuation: str = "pressure") -> float:
+        """Under pressure the top plate holds the inflating membrane down round
+        each window, so it stays stiff. Under vacuum nothing pushes on it: it
+        only clamps membrane 2, so it can be a thin sheet."""
+        return self.top_t_vacuum if actuation == "vacuum" else self.top_t
 
     def nut_level(self, k: int, levels: int, radius: float) -> bool:
         """Does a channel of `radius` on level k reach down into the nut

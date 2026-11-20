@@ -53,6 +53,7 @@ class Model:
     bolts: list                     # (x, y)
     stack: Stack = STACK
     report: list[str] = field(default_factory=list)
+    actuation: str = "pressure"
 
     def nets(self, plate):
         return sorted({f.net for f in self.features if f.plate == plate})
@@ -63,7 +64,7 @@ def build_model(lay: Layout, routing: Routing, st: Stack = STACK) -> Model:
     if not routing.ok:
         raise ValueError("the layout is not routed")
     R = lay.rules
-    Tb, Tm, Tt = routing.bottom_t, st.mid_t, st.top_t
+    Tb, Tm, Tt = routing.bottom_t, st.middle_t(lay.actuation, R.bowl_depth), st.top_thickness(lay.actuation)
     feats: list[Feature] = []
     lines = resolve_lines(lay)
     windows = {}
@@ -87,6 +88,10 @@ def build_model(lay: Layout, routing: Routing, st: Stack = STACK) -> Model:
             w, l = (st.chamber_l, st.chamber_w) if a.rotation % 180 == 0 else (st.chamber_w, st.chamber_l)
             feats.append(Feature("bottom", net, "chamber",
                                  {"at": P(lx, st.chamber_dy), "w": w, "l": l, "depth": st.chamber_depth}))
+        if lay.actuation == "vacuum":
+            # the bowl the membrane is pulled into, on the riser, under the window
+            feats.append(Feature("middle", out, "bowl", {"at": (a.x, a.y), "d": R.window_d,
+                                                         "depth": R.bowl_depth, "z": Tm}))
         windows[a.name] = (a.x, a.y, R.window_d)
         feats.append(Feature("top", f"{a.name}.window", "window",
                              {"at": (a.x, a.y), "d": R.window_d, "z0": Tm, "z1": Tm + Tt}))
@@ -108,7 +113,8 @@ def build_model(lay: Layout, routing: Routing, st: Stack = STACK) -> Model:
                 "at": (x, y), "d": R.bolt_d, "z0": z0[plate], "z1": z0[plate] + th[plate]}))
         feats.append(Feature("bottom", f"bolt{i + 1}", "nut", {
             "at": (x, y), "af": R.nut_af, "depth": st.nut_depth, "z": -Tb}))
-    m = Model(lay.width, lay.length, th, z0, feats, routing, lines, windows, bolts, st)
+    m = Model(lay.width, lay.length, th, z0, feats, routing, lines, windows, bolts, st,
+              actuation=lay.actuation)
     m.report = _report(lay, m)
     return m
 
@@ -241,6 +247,26 @@ def feature_solid(m3, f: Feature, st: Stack = STACK, fine: bool = True):
         parts = [bore, funnel, neck]
         if np.dot(e - a, u) > 1e-6:
             parts += [_cyl(m3, a, e, st.r, seg), _sphere(m3, e, st.r, seg)]
+        return M.batch_boolean(parts, m3.OpType.Add)
+    if f.kind == "bowl":
+        # spherical cap: diameter d at the top face z, `depth` deep, plus
+        # radial bleed grooves following the surface
+        x, y = d["at"]
+        a, h, z = d["d"] / 2.0, d["depth"], d["z"]
+        R = (a * a + h * h) / (2.0 * h)
+        cz = z - h + R
+        s48 = 64 if fine else 20
+        slab = M.cube((2 * R + 4, 2 * R + 4, h + PROUD + 0.1)).translate((x - R - 2, y - R - 2, z - h - 0.1))
+        parts = [_sphere(m3, (x, y, cz), R, s48) ^ slab]
+        big = _sphere(m3, (x, y, cz), R + st.bleed_d, s48)
+        rim = M.cylinder(h + st.bleed_d + PROUD + 1, a - 0.3, a - 0.3, s48).translate(
+            (x, y, z - h - st.bleed_d - 0.5))
+        for k in range(st.bleeds):
+            ang = 2 * math.pi * k / st.bleeds + math.pi / 2
+            bar = M.cube((a, st.bleed_w, h + st.bleed_d + PROUD + 1)).translate(
+                (0.0, -st.bleed_w / 2, z - h - st.bleed_d - 0.5))
+            bar = bar.rotate((0.0, 0.0, math.degrees(ang))).translate((x, y, 0.0))
+            parts.append(big ^ bar ^ rim)
         return M.batch_boolean(parts, m3.OpType.Add)
     if f.kind in ("hole", "window"):
         x, y = d["at"]
@@ -406,9 +432,7 @@ def _report(lay: Layout, m: Model) -> list[str]:
         "middle plate, membrane 2, top plate. The chamfered corner goes on the same corner "
         "of every plate. Cut both membranes from the membrane template.",
         "",
-        "How it works: every actuator is two normally-open valves in series between the "
-        "supply and its dome. Pressurising a line closes the valve it feeds. With the supply "
-        "on, a dome rises only while BOTH of its lines are vented.",
+        *_how_it_works(lay, m),
         "",
         "Inlets (needle ports; positions from the plate's bottom-left corner, seen from the top):",
     ]
@@ -421,10 +445,34 @@ def _report(lay: Layout, m: Model) -> list[str]:
         out.append(f"  {name:<6} {what:<6} {nr.plate:<6} plate, {p.face:<5} face at {coord} mm, "
                    f"{abs(p.start[2]):.2f} mm {'below membrane 1' if nr.plate == 'bottom' else 'above membrane 1'}; "
                    f"needle bore {p.depth:g} mm")
-    out += ["", "Lines (actuator: which valve it closes):"]
+    verb = "opens" if m.actuation == "vacuum" else "closes"
+    out += ["", f"Lines (actuator: which valve it {verb}):"]
     for name, nr in r.nets.items():
         if name == SUPPLY:
             continue
         mem = ", ".join(f"{a} ({'supply side' if w == 'row' else 'dome side'})" for a, w in nr.members)
         out.append(f"  {name:<6} {mem}")
     return out
+
+
+def _how_it_works(lay: Layout, m: Model) -> list[str]:
+    if m.actuation != "vacuum":
+        return ["Actuation: POSITIVE PRESSURE. Every actuator is two normally-open valves in series "
+                "between the supply and its dome. Pressurising a line closes the valve it feeds. With "
+                "the supply on, an actuator inflates only while BOTH of its lines are vented."]
+    return [
+        f"Actuation: NEGATIVE PRESSURE (vacuum). Under every window the middle plate has a "
+        f"{lay.rules.bowl_depth:g} mm deep bowl; vacuum on the actuator pulls membrane 2 down into it, "
+        f"so the travel is set by the bowl and the membrane cannot burst. Nothing pushes on the top plate, "
+        f"so it is a thin {m.thickness['top']:g} mm sheet that only clamps the membrane (use washers "
+        f"under the bolt heads).",
+        "The valves work the other way round under vacuum: the vacuum in the channel pulls the valve "
+        "membrane onto its seat, so a valve is CLOSED while its line is vented, and OPENS when its line "
+        "has a STRONGER vacuum than the supply.",
+        "So run two vacuum levels: the supply at a weaker vacuum (a bleed or regulator off the pump) and "
+        "the lines at full vacuum. An actuator is pulled in only while BOTH of its lines are under "
+        "vacuum. To release the actuators, vent the supply to air with the lines still under vacuum.",
+        "The same plates also work with positive pressure (the membrane then inflates through the "
+        "window as usual). The vacuum logic is reasoned from the valve design and not yet tested on a "
+        "printed part: try it on a small matrix first.",
+    ]

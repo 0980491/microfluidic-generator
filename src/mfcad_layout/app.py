@@ -61,6 +61,17 @@ HINTS = {
     "matrix": "Click to place the matrix (first dome at the cursor). R rotates. Esc to stop.",
 }
 FILETYPES = [("mfcad layout", "*.mfl"), ("JSON", "*.json"), ("All files", "*")]
+LINES_TEXT = {
+    "pressure": "Every actuator sits on two lines: its row line (supply-side valve) and its column "
+                "line (dome-side valve). Pressurising a line closes its valves, so an actuator inflates "
+                "while both of its lines are vented. Names are automatic, like a keyboard matrix; "
+                "select an actuator to put it on another line. Pick the face each inlet comes out on.",
+    "vacuum": "Every actuator sits on two lines: its row line (supply-side valve) and its column line "
+              "(dome-side valve). Under vacuum a valve stays shut until its line has a stronger vacuum "
+              "than the supply, so an actuator is pulled in while both of its lines are under vacuum. "
+              "Names are automatic, like a keyboard matrix; select an actuator to put it on another "
+              "line. Pick the face each inlet comes out on.",
+}
 LINE_NAME = re.compile(r"^[A-Za-z0-9_\-\.']{1,12}$")
 
 
@@ -264,8 +275,21 @@ class App:
         ttk.Button(pf, text="Apply", style="Small.TButton", command=self.apply_plate).grid(
             row=2, column=3, sticky="e", padx=(8, 0))
         pf.columnconfigure(3, weight=1)
+        ttk.Label(pf, text="Actuation", style="Card.TLabel").grid(row=3, column=0, sticky="w", pady=(8, 2))
+        self.actuation = tk.StringVar(value="pressure")
+        seg = tk.Frame(pf, bg=theme.BORDER, padx=1, pady=1)
+        seg.grid(row=3, column=1, columnspan=3, sticky="w", padx=6, pady=(8, 2))
+        segi = ttk.Frame(seg, style="Card.TFrame")
+        segi.pack()
+        for val, text, tip in (("pressure", "Positive", "Positive pressure: domes inflate up through the windows"),
+                               ("vacuum", "Negative (vacuum)", "Negative pressure: membranes are pulled down into a bowl "
+                                                               "in the middle plate (thicker middle plate)")):
+            b = ttk.Radiobutton(segi, text=text, value=val, variable=self.actuation, style="Tool.TRadiobutton",
+                                command=lambda: self._set_actuation(self.actuation.get()))
+            b.pack(side="left")
+            Tooltip(b, tip)
         self.plate_info = ttk.Label(pf, style="CardMuted.TLabel", wraplength=270, justify="left")
-        self.plate_info.grid(row=3, column=0, columnspan=4, sticky="w", pady=(6, 0))
+        self.plate_info.grid(row=4, column=0, columnspan=4, sticky="w", pady=(6, 0))
 
         outer, sf = theme.card(tab, "Selection")
         outer.pack(fill="x", pady=(10, 0))
@@ -315,11 +339,8 @@ class App:
         # ---- lines ----
         tab = ttk.Frame(nb, style="Side.TFrame", padding=10)
         nb.add(tab, text="Lines")
-        ttk.Label(tab, style="Muted.TLabel", wraplength=300, justify="left",
-                  text="Every actuator closes on two lines: its row line (supply-side valve) and "
-                       "its column line (dome-side valve). Its dome rises while both are vented. "
-                       "Names are automatic, like a keyboard matrix; select an actuator to put it "
-                       "on another line. Pick the face each inlet comes out on.").pack(anchor="w")
+        self.lines_text = ttk.Label(tab, style="Muted.TLabel", wraplength=300, justify="left")
+        self.lines_text.pack(anchor="w")
         outer, spf = theme.card(tab, "Supply (middle plate)")
         outer.pack(fill="x", pady=(10, 0))
         ttk.Label(spf, text="Inlet face", style="Card.TLabel").grid(row=1, column=0, sticky="w")
@@ -479,6 +500,8 @@ class App:
                                     f"{len(self.lay.bolts)} bolts. Origin at the bottom-left "
                                     f"corner, seen from the top plate.")
         self.supply_face.set(self.lay.faces.get(SUPPLY, "front"))
+        self.actuation.set(self.lay.actuation)
+        self.lines_text.config(text=LINES_TEXT[self.lay.actuation])
         self._fill_checks()
         self._fill_props()
         self._fill_lines()
@@ -627,6 +650,8 @@ class App:
         wx, wy, wr = a.window(R)
         self._circle(wx, wy, wr, fill="" if ghost else WINDOW, outline=line or WINDOW_LINE,
                      width=2.2 if state != "normal" or ghost else 1.4)
+        if self.lay.actuation == "vacuum" and not ghost:
+            self._circle(wx, wy, wr * 0.62, fill="", outline=line or WINDOW_LINE, dash=(3, 2))
         self._circle(wx, wy, 0.9, fill=line or WINDOW_LINE, outline="")
         if self.scale >= 4 and not ghost:
             sx, sy = self.w2s(wx, wy - wr - 0.3)
@@ -1011,6 +1036,14 @@ class App:
             self.redraw()
         self.canvas.focus_set()
 
+    def _set_actuation(self, mode):
+        if mode == self.lay.actuation:
+            return
+        self._push()
+        self.lay.actuation = mode
+        self._changed("Negative pressure: each window gets a bowl in the middle plate; see Help → How "
+                      "the logic works." if mode == "vacuum" else "Positive pressure: the domes inflate.")
+
     def _set_face(self, line, face):
         if self.lay.faces.get(line, "front" if line == SUPPLY else "auto") == face:
             return
@@ -1290,6 +1323,8 @@ class App:
             floors = new.floors()
             bad = [f"{name} must be ≥ {floors.get(name, 0):g}" for name, val in vals.items()
                    if val < floors.get(name, 0) or (val <= 0 and name != "act_gap")]
+            if vals["bowl_depth"] > vals["window_d"] / 2.0 + 1e-9:
+                bad.append("the bowl can't be deeper than half the window (a hemisphere)")
             if vals["act_gap"] < 0:
                 bad.append("act_gap can't be negative")
             if bad:
@@ -1341,13 +1376,21 @@ class App:
 
     def help_logic(self):
         messagebox.showinfo("How the logic works", "\n".join([
-            "Each actuator is a dome over two normally-open membrane valves in series:",
+            "Each actuator is a membrane over two normally-open valves in series:",
             "",
-            "  supply → valve 1 (row line) → valve 2 (column line) → dome",
+            "  supply → valve 1 (row line) → valve 2 (column line) → actuator",
             "",
-            "Pressurising a line closes every valve it feeds. With the supply on, a dome "
-            "rises only while both of its lines are vented — the way a keyboard matrix "
-            "picks one key with a row and a column.",
+            "POSITIVE PRESSURE. Pressurising a line closes every valve it feeds. With the "
+            "supply on, an actuator inflates only while both of its lines are vented — the way "
+            "a keyboard matrix picks one key with a row and a column.",
+            "",
+            "NEGATIVE PRESSURE (vacuum). The middle plate gets a bowl under every window and "
+            "the membrane is pulled down into it, so it can't burst. The valves flip: the vacuum "
+            "in a channel pulls its valve shut, so a valve stays closed while its line is vented "
+            "and opens when its line has a stronger vacuum than the supply. Run the supply at a "
+            "weaker vacuum and the lines at full vacuum; an actuator is pulled in while both of "
+            "its lines are under vacuum. To release, vent the supply with the lines still under "
+            "vacuum. (Reasoned from the valve design; test it on a small matrix first.)",
             "",
             "Rows are named R1, R2… from the top, columns C1, C2… from the left. Give an "
             "actuator another line name to wire it however you like; actuators with the "

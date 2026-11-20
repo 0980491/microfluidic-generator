@@ -11,7 +11,7 @@ export const PLATES = ['bottom', 'middle', 'top'];
 export function buildModel(lay, routing, st = STACK) {
   if (!routing.ok) throw new Error('the layout is not routed');
   const R = lay.rules;
-  const Tb = routing.bottom_t, Tm = st.mid_t, Tt = st.top_t;
+  const Tb = routing.bottom_t, Tm = st.middle_t(lay.actuation, R.bowl_depth), Tt = st.top_thickness(lay.actuation);
   const feats = [];
   const F = (plate, net, kind, data) => feats.push({ plate, net, kind, data });
   const lines = resolveLines(lay);
@@ -31,6 +31,8 @@ export function buildModel(lay, routing, st = STACK) {
       const [w, l] = a.rotation % 180 === 0 ? [st.chamber_l, st.chamber_w] : [st.chamber_w, st.chamber_l];
       F('bottom', net, 'chamber', { at: P(lx, st.chamber_dy), w, l, depth: st.chamber_depth });
     }
+    if (lay.actuation === 'vacuum')
+      F('middle', out, 'bowl', { at: [a.x, a.y], d: R.window_d, depth: R.bowl_depth, z: Tm });
     windows[a.name] = [a.x, a.y, R.window_d];
     F('top', `${a.name}.window`, 'window', { at: [a.x, a.y], d: R.window_d, z0: Tm, z1: Tm + Tt });
   }
@@ -48,7 +50,7 @@ export function buildModel(lay, routing, st = STACK) {
     for (const plate of PLATES) F(plate, `bolt${i + 1}`, 'hole', { at: [x, y], d: R.bolt_d, z0: z0[plate], z1: z0[plate] + th[plate] });
     F('bottom', `bolt${i + 1}`, 'nut', { at: [x, y], af: R.nut_af, depth: st.nut_depth, z: -Tb });
   });
-  const m = { width: lay.width, length: lay.length, thickness: th, z0, features: feats, routing, lines, windows, bolts, stack: st };
+  const m = { width: lay.width, length: lay.length, thickness: th, z0, features: feats, routing, lines, windows, bolts, stack: st, actuation: lay.actuation };
   m.report = report(lay, m);
   return m;
 }
@@ -168,6 +170,23 @@ export function featureSolid(A, f, st = STACK, fine = true) {
     ];
     const a = add(s, mul(u, dep + st.neck_len - 0.1)), e = d.end;
     if (dot(sub(e, a), u) > 1e-6) parts.push(cyl(A, a, e, st.r, seg), sphere(A, e, st.r, seg));
+    return union(A, parts);
+  }
+  if (f.kind === 'bowl') {
+    // spherical cap, d wide at the top face z and `depth` deep, plus radial
+    // bleed grooves following the surface
+    const [x, y] = d.at, a = d.d / 2, h = d.depth, z = d.z;
+    const R = (a * a + h * h) / (2 * h), cz = z - h + R, s = fine ? 64 : 20;
+    const slab = A.k(A.k(M.cube([2 * R + 4, 2 * R + 4, h + PROUD + 0.1])).translate([x - R - 2, y - R - 2, z - h - 0.1]));
+    const parts = [A.k(sphere(A, [x, y, cz], R, s).intersect(slab))];
+    const big = sphere(A, [x, y, cz], R + st.bleed_d, s);
+    const rim = A.k(A.k(M.cylinder(h + st.bleed_d + PROUD + 1, a - 0.3, a - 0.3, s)).translate([x, y, z - h - st.bleed_d - 0.5]));
+    for (let k = 0; k < st.bleeds; k++) {
+      const ang = 360 * k / st.bleeds + 90;
+      const bar0 = A.k(A.k(M.cube([a, st.bleed_w, h + st.bleed_d + PROUD + 1])).translate([0, -st.bleed_w / 2, z - h - st.bleed_d - 0.5]));
+      const bar = A.k(A.k(bar0.rotate([0, 0, ang])).translate([x, y, 0]));
+      parts.push(A.k(A.k(big.intersect(bar)).intersect(rim)));
+    }
     return union(A, parts);
   }
   if (f.kind === 'hole' || f.kind === 'window') {
@@ -292,7 +311,7 @@ export function report(lay, m) {
     'Printing: every STL is already contact face down. Bottom: chambers face the bed. Middle: valve seats face the bed. Top: membrane side faces the bed.',
     'Assembly, from the bottom up: bottom plate (nuts in the hex pockets), membrane 1, middle plate, membrane 2, top plate. The chamfered corner goes on the same corner of every plate. Cut both membranes from the membrane template.',
     '',
-    'How it works: every actuator is two normally-open valves in series between the supply and its dome. Pressurising a line closes the valve it feeds. With the supply on, a dome rises only while BOTH of its lines are vented.',
+    ...howItWorks(lay, m),
     '',
     "Inlets (needle ports; positions from the plate's bottom-left corner, seen from the top):",
   ];
@@ -303,10 +322,21 @@ export function report(lay, m) {
     out.push(`  ${name.padEnd(6)} ${(name === SUPPLY ? 'supply' : 'line').padEnd(6)} ${nr.plate.padEnd(6)} plate, ${p.face.padEnd(5)} face at ${coord} mm, ` +
       `${Math.abs(p.start[2]).toFixed(2)} mm ${nr.plate === 'bottom' ? 'below' : 'above'} membrane 1; needle bore ${p.depth} mm`);
   }
-  out.push('', 'Lines (actuator: which valve it closes):');
+  out.push('', `Lines (actuator: which valve it ${m.actuation === 'vacuum' ? 'opens' : 'closes'}):`);
   for (const [name, nr] of r.nets) {
     if (name === SUPPLY) continue;
     out.push(`  ${name.padEnd(6)} ${nr.members.map(([a, w]) => `${a} (${w === 'row' ? 'supply side' : 'dome side'})`).join(', ')}`);
   }
   return out;
+}
+
+function howItWorks(lay, m) {
+  if (m.actuation !== 'vacuum')
+    return ['Actuation: POSITIVE PRESSURE. Every actuator is two normally-open valves in series between the supply and its dome. Pressurising a line closes the valve it feeds. With the supply on, an actuator inflates only while BOTH of its lines are vented.'];
+  return [
+    `Actuation: NEGATIVE PRESSURE (vacuum). Under every window the middle plate has a ${lay.rules.bowl_depth} mm deep bowl; vacuum on the actuator pulls membrane 2 down into it, so the travel is set by the bowl and the membrane cannot burst. Nothing pushes on the top plate, so it is a thin ${m.thickness.top} mm sheet that only clamps the membrane (use washers under the bolt heads).`,
+    'The valves work the other way round under vacuum: the vacuum in the channel pulls the valve membrane onto its seat, so a valve is CLOSED while its line is vented, and OPENS when its line has a STRONGER vacuum than the supply.',
+    'So run two vacuum levels: the supply at a weaker vacuum (a bleed or regulator off the pump) and the lines at full vacuum. An actuator is pulled in only while BOTH of its lines are under vacuum. To release the actuators, vent the supply to air with the lines still under vacuum.',
+    'The same plates also work with positive pressure (the membrane then inflates through the window as usual). The vacuum logic is reasoned from the valve design and not yet tested on a printed part: try it on a small matrix first.',
+  ];
 }

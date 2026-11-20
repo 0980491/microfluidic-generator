@@ -194,6 +194,30 @@ and a column.
   The supply has its own face setting.
 - The chambers on the plate are drawn in the colour of their line.
 
+### Positive or negative pressure
+
+**Properties → Plate → Actuation** switches the whole design between two ways of
+driving it.
+
+| | Positive pressure | Negative pressure (vacuum) |
+|---|---|---|
+| The actuator | Membrane 2 inflates up through the window | Membrane 2 is pulled down into a **bowl** in the middle plate, under the window |
+| Plates | Middle 8.0 mm, top 3.0 mm, as printed in the thesis | Middle grows to fit the bowl (9.7 mm with the default 2 mm bowl). The top plate is a **thin 1.2 mm sheet**, because nothing pushes on it |
+| A valve closes when | its line is pressurised | its line is vented, because the vacuum in the channel pulls the valve shut |
+| An actuator moves while | **both** of its lines are vented | **both** of its lines have a stronger vacuum than the supply |
+| Supply | pressure | a weaker vacuum than the lines (a bleed or regulator off the same pump) |
+| To reset | vent the supply with both lines vented | vent the supply with the lines still under vacuum |
+
+- **Why use vacuum:** the bowl limits how far the membrane can move, so it can't
+  burst.
+- **Bowls:** each one is a spherical cap as wide as the window. Its depth is
+  **Rules → Vacuum bowl depth**, at most a hemisphere. Three shallow grooves run
+  out from the riser, so the membrane can't seal the hole and trap air at the rim.
+- **Positive pressure on vacuum plates:** the thicker middle plate still works with
+  positive pressure. The thin top plate is meant for vacuum only.
+- **Testing:** the vacuum valve logic follows from how the valve works, but it has
+  not been tested on a printed part yet. Try it on a small matrix first.
+
 ### Generate 3D and export
 
 **Generate 3D** (Ctrl+G) routes every line through the bottom plate and the

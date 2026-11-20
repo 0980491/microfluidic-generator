@@ -137,6 +137,14 @@ class Viewer3D:
                 r = d["d"] / 2.0
                 self.polys.append((f.plate, f.net, _circle((x, y, d["z0"]), r, (0, 0, -1), 24), "window"))
                 self.polys.append((f.plate, f.net, _circle((x, y, d["z1"]), r, (0, 0, 1), 24), "ring"))
+            elif f.kind == "bowl":
+                x, y = d["at"]
+                a, h, z = d["d"] / 2.0, d["depth"], d["z"]
+                R = (a * a + h * h) / (2.0 * h)
+                for frac in (1.0, 0.7, 0.4):           # rings down the bowl
+                    rr = a * frac
+                    zz = z - h + R - math.sqrt(max(R * R - rr * rr, 0.0))
+                    self.polys.append((f.plate, f.net, _circle((x, y, zz), rr, (0, 0, 1), 24), "ring"))
             elif f.kind == "hole":
                 x, y = d["at"]
                 for z in (d["z0"], d["z1"]):
@@ -215,7 +223,8 @@ class Viewer3D:
         T = self.m.thickness
         ttk.Label(side, style="Muted.TLabel", wraplength=250, justify="left",
                   text=f"Plates {self.m.width:g} × {self.m.length:g} mm; bottom {T['bottom']:g}, "
-                       f"middle {T['middle']:g}, top {T['top']:g} mm. Lines on {info.levels} "
+                       f"middle {T['middle']:g}, top {T['top']:g} mm. "
+                       f"{'Negative pressure (bowls). ' if self.m.actuation == 'vacuum' else ''}Lines on {info.levels} "
                        f"level{'s' if info.levels > 1 else ''}.").pack(anchor="w", pady=(10, 6))
         if self.on_export:
             ttk.Button(side, text="Export STL files…", style="Accent.TButton",
